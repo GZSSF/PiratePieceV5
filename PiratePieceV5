@@ -1,0 +1,1134 @@
+--[[
+    ╔══════════════════════════════════════════════════════════╗
+    ║                HUB BY GZSSF v3.8                         ║
+    ║     TARGET: Pirate Piece - BOSS & SLOT FIX               ║
+    ║     EXECUTOR: XENO (SUPPORTED)                           ║
+    ╚══════════════════════════════════════════════════════════╝
+]]
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local is_script_active = true
+
+-- ================= TRADUCCIONES =================
+local currentLanguage = "es"
+
+local translations = {
+    es = {
+        farmSelected = "FARM SELECCIONADO",
+        farmNearest = "FARM CERCANO",
+        autoClick = "AUTO CLICK",
+        autoAbilities = "AUTO HABILIDADES",
+        method = "Método",
+        distance = "Distancia Farm",
+        target = "Objetivo",
+        none = "Ninguno",
+        settings = "AJUSTES",
+        autoFarm = "AUTO FARM",
+        autoBoss = "AUTO BOSS",
+        bossTarget = "Boss Objetivo",
+        themes = "TEMAS PRESET",
+        customAccent = "Acento HEX Personalizado",
+        autoEquip = "AUTO EQUIPAR SLOT",
+        slot = "Slot",
+        langSelect = "Selecciona tu idioma",
+        langES = "Español",
+        langEN = "English",
+        on = "ON",
+        off = "OFF",
+        apply = "Aplicar",
+        safeReset = "Reinicio Seguro",
+        invalidHex = "HEX Invalido"
+    },
+    en = {
+        farmSelected = "FARM SELECTED",
+        farmNearest = "FARM NEAREST",
+        autoClick = "AUTO CLICK",
+        autoAbilities = "AUTO ABILITIES",
+        method = "Method",
+        distance = "Farm Distance",
+        target = "Target",
+        none = "None",
+        settings = "SETTINGS",
+        autoFarm = "AUTO FARM",
+        autoBoss = "AUTO BOSS",
+        bossTarget = "Boss Target",
+        themes = "PRESET THEMES",
+        customAccent = "Custom HEX Accent",
+        autoEquip = "AUTO EQUIP SLOT",
+        slot = "Slot",
+        langSelect = "Select your language",
+        langES = "Spanish",
+        langEN = "English",
+        on = "ON",
+        off = "OFF",
+        apply = "Apply",
+        safeReset = "Safe Reset",
+        invalidHex = "Invalid HEX"
+    }
+}
+
+local function t(key)
+    return translations[currentLanguage][key] or key
+end
+
+-- ================= CONFIGURACIÓN GLOBAL =================
+local currentTheme = {
+    Main = Color3.fromRGB(15, 15, 18),
+    Acc = Color3.fromRGB(0, 255, 255),
+    Text = Color3.fromRGB(255, 255, 255)
+}
+
+local farming_enabled = false
+local nearest_farming_enabled = false
+local boss_farming_enabled = false
+local autoclick_enabled = false
+local auto_abilities_enabled = false
+local farm_distance = 7
+local farm_method = "Above"
+
+local ui_toggle_key = Enum.KeyCode.RightControl
+local is_minimized = false
+
+local key_farm = Enum.KeyCode.K
+local key_nearest = Enum.KeyCode.M
+local key_click = Enum.KeyCode.L
+local key_abilities = Enum.KeyCode.J
+
+local auto_equip_enabled = false
+local auto_equip_slot = 1
+local equipDebounce = false
+local lastSafePosition = nil
+
+local target_part = nil
+local selected_mob_data = nil
+local boss_target_part = nil
+local selected_boss_data = nil
+
+local connections = {}
+local function connect(signal, func)
+    local conn = signal:Connect(func)
+    table.insert(connections, conn)
+    return conn
+end
+
+-- ================= DATA DE ENEMIGOS =================
+local EnemyNpcs = Workspace:WaitForChild("Game"):WaitForChild("EnemyNpcs")
+local islandPaths = {
+    EnemyNpcs:WaitForChild("island1"), EnemyNpcs:WaitForChild("island2"),
+    EnemyNpcs:WaitForChild("island3"), EnemyNpcs:WaitForChild("island4"),
+    EnemyNpcs:WaitForChild("island5"), EnemyNpcs:WaitForChild("island6"),
+    EnemyNpcs:WaitForChild("island7"), EnemyNpcs:WaitForChild("island8"),
+    EnemyNpcs:WaitForChild("shibuya")
+}
+
+local mobData = {
+    {Display = "Luffey (50-100)", Name = "Luffey", Spawn = Vector3.new(437.667, 3.674, 54.448)},
+    {Display = "Raylee (100-250)", Name = "Raylee", Spawn = Vector3.new(634.455, 12.853, 5.710)},
+    {Display = "Zoru (250-500)", Name = "Zoru", Spawn = Vector3.new(208.050, 10.797, -774.955)},
+    {Display = "Meehawk (500-750)", Name = "Meehawk", Spawn = Vector3.new(251.529, 10.924, -637.924)},
+    {Display = "Whitebard (750-1000)", Name = "Whitebard", Spawn = Vector3.new(1099.729, 3.680, -588.730)},
+    {Display = "Blackbard (1000-1500)", Name = "Blackbard", Spawn = Vector3.new(1219.159, 4.826, -651.656)},
+    {Display = "Kaydo (1500-2000)", Name = "Kaydo", Spawn = Vector3.new(-520.809, 11.968, -300.601)},
+    {Display = "Shonks (2000-3000)", Name = "Shonks", Spawn = Vector3.new(-705.441, 11.278, -319.838)},
+    {Display = "Ulqeeora (3000-4000)", Name = "Ulqeeora", Spawn = Vector3.new(38.371, 11.231, 732.826)},
+    {Display = "Grimmjaw (4000-5000)", Name = "Grimmjaw", Spawn = Vector3.new(282.358, 6.715, 788.733)},
+    {Display = "Tojee (5500)", Name = "Tojee", Spawn = Vector3.new(1221.768, 17.054, 925.602)},
+    {Display = "Mahogara (6000)", Name = "Mahogara", Spawn = Vector3.new(1341.346, 25.459, 969.529)},
+    {Display = "Robyn (6500)", Name = "Robyn", Spawn = Vector3.new(267.220, 6.692, -1675.884)},
+    {Display = "Aokeejee (7500)", Name = "Aokeejee", Spawn = Vector3.new(315.537, 7.319, -1814.212)},
+    {Display = "Bogard (8000)", Name = "Bogard", Spawn = Vector3.new(-826.1371459960938, 29.894062042236328, 960.0199584960938)},
+    {Display = "Kobenu (9000)", Name = "Kobenu", Spawn = Vector3.new(2550.75439453125, 3.2214245796203613, -54.12282943725586)}
+}
+
+local bossData = {
+    {Display = "Goujo Boss [Lv. 3333]", Name = "Goujo Boss", Spawn = Vector3.new(1141.97216796875, 46.405426025390625, -855.4978637695312)},
+    {Display = "Ayzen Boss [Lv. 6666]", Name = "Ayzen Boss", Spawn = Vector3.new(75.83663177490234, 10.925999641418457, 827.5452270507812)},
+    {Display = "Sokuna Boss [Lv. 8888]", Name = "Sokuna Boss", Spawn = Vector3.new(1573.8988037109375, 16.97490119934082, 907.4929809570312)},
+    {Display = "Gouku [Lv. 9999]", Name = "Gouku", Spawn = Vector3.new(5.465822696685791, 6.674808025360107, -1823.1336669921875)},
+    {Display = "Galaxy Boss [Lv. 6666]", Name = "Galaxy Boss", Spawn = Vector3.new(-940.2113037109375, 28.90858268737793, 769.8407592773438)},
+    {Display = "Dragon Boss", Name = "Dragon Boss", Spawn = Vector3.new(-835.3096313476562, 42.485023498535156, 624.025146484375)}
+}
+
+-- ================= FUNCIONES UTILITARIAS =================
+local function setCollision(char, state)
+    if not char then return end
+    for _, p in pairs(char:GetChildren()) do
+        if p:IsA("BasePart") then
+            p.CanCollide = state
+        end
+    end
+end
+
+local function getSafePosition()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local rayOrigin = hrp.Position
+        local rayDirection = Vector3.new(0, -100, 0)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {char}
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        local result = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        if result then
+            return result.Position + Vector3.new(0, 5, 0)
+        end
+    end
+    if selected_mob_data then
+        return selected_mob_data.Spawn + Vector3.new(0, 10, 0)
+    end
+    if selected_boss_data then
+        return selected_boss_data.Spawn + Vector3.new(0, 10, 0)
+    end
+    return Vector3.new(437.667, 10, 54.448)
+end
+
+local function dropNextToEnemy()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    setCollision(char, true)
+    if hrp and target_part and target_part.Parent then
+        local mobH = target_part.Parent:FindFirstChildOfClass("Humanoid")
+        if mobH and mobH.Health > 0 then
+            hrp.Velocity = Vector3.zero
+            hrp.CFrame = target_part.CFrame * CFrame.new(0, 2, 4)
+            return
+        end
+    end
+    if hrp then
+        hrp.Velocity = Vector3.zero
+        local safePos = getSafePosition()
+        hrp.CFrame = CFrame.new(safePos)
+    end
+    target_part = nil
+    boss_target_part = nil
+end
+
+-- ================= AUTO EQUIP FIX =================
+local function tryEquipSlot()
+    if not auto_equip_enabled or equipDebounce then return end
+    local char = player.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    -- Si ya tiene algo equipado, no tocar nada
+    if char:FindFirstChildOfClass("Tool") then return end
+
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return end
+
+    local tools = {}
+    for _, v in ipairs(backpack:GetChildren()) do
+        if v:IsA("Tool") then
+            table.insert(tools, v)
+        end
+    end
+
+    local targetTool = tools[auto_equip_slot]
+    if not targetTool then return end
+
+    equipDebounce = true
+    pcall(function()
+        humanoid:EquipTool(targetTool)
+    end)
+    task.wait(1.0)
+    equipDebounce = false
+end
+
+-- ================= LÓGICA DE MOVIMIENTO =================
+local function toggleSpecificFarm()
+    farming_enabled = not farming_enabled
+    if nearest_farming_enabled and farming_enabled then nearest_farming_enabled = false end
+    if boss_farming_enabled and farming_enabled then boss_farming_enabled = false end
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if farming_enabled and hrp and selected_mob_data then
+        lastSafePosition = hrp.Position
+        hrp.CFrame = CFrame.new(selected_mob_data.Spawn) + Vector3.new(0, farm_distance, 0)
+    elseif not farming_enabled then
+        dropNextToEnemy()
+    end
+end
+
+local function toggleNearestFarm()
+    nearest_farming_enabled = not nearest_farming_enabled
+    if farming_enabled and nearest_farming_enabled then farming_enabled = false end
+    if boss_farming_enabled and nearest_farming_enabled then boss_farming_enabled = false end
+    if not nearest_farming_enabled then dropNextToEnemy() end
+end
+
+local function toggleBossFarm()
+    boss_farming_enabled = not boss_farming_enabled
+    if farming_enabled and boss_farming_enabled then farming_enabled = false end
+    if nearest_farming_enabled and boss_farming_enabled then nearest_farming_enabled = false end
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if boss_farming_enabled and hrp and selected_boss_data then
+        lastSafePosition = hrp.Position
+        hrp.CFrame = CFrame.new(selected_boss_data.Spawn) + Vector3.new(0, farm_distance, 0)
+    elseif not boss_farming_enabled then
+        dropNextToEnemy()
+    end
+end
+
+-- ================= INTERFAZ GRÁFICA =================
+local pGui = player:WaitForChild("PlayerGui")
+if pGui:FindFirstChild("GZSSF_V38") then pGui.GZSSF_V38:Destroy() end
+
+local sg = Instance.new("ScreenGui", pGui)
+sg.Name = "GZSSF_V38"
+sg.ResetOnSpawn = false
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- ================= SELECTOR DE IDIOMA =================
+local langFrame = Instance.new("Frame", sg)
+langFrame.Size = UDim2.new(0, 400, 0, 250)
+langFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+langFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+langFrame.BorderSizePixel = 0
+langFrame.Active = true
+Instance.new("UICorner", langFrame).CornerRadius = UDim.new(0, 12)
+
+local langStroke = Instance.new("UIStroke", langFrame)
+langStroke.Color = currentTheme.Acc
+langStroke.Thickness = 2
+
+local langTitle = Instance.new("TextLabel", langFrame)
+langTitle.Size = UDim2.new(1, 0, 0, 60)
+langTitle.Position = UDim2.new(0, 0, 0, 20)
+langTitle.Text = "GZSSF Hub v3.8\nSelecciona tu idioma / Select your language"
+langTitle.TextColor3 = currentTheme.Text
+langTitle.Font = Enum.Font.GothamBold
+langTitle.TextSize = 20
+langTitle.BackgroundTransparency = 1
+langTitle.TextWrapped = true
+
+local btnContainer = Instance.new("Frame", langFrame)
+btnContainer.Size = UDim2.new(1, -40, 0, 60)
+btnContainer.Position = UDim2.new(0, 20, 0, 140)
+btnContainer.BackgroundTransparency = 1
+
+local btnLayout = Instance.new("UIListLayout", btnContainer)
+btnLayout.FillDirection = Enum.FillDirection.Horizontal
+btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+btnLayout.Padding = UDim.new(0, 20)
+
+local function createLangButton(text, lang)
+    local b = Instance.new("TextButton", btnContainer)
+    b.Size = UDim2.new(0, 140, 0, 50)
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    b.TextColor3 = currentTheme.Acc
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 18
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", b)
+    stroke.Color = currentTheme.Acc
+    stroke.Thickness = 1.5
+    
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 65)}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 45)}):Play()
+    end)
+    
+    b.MouseButton1Click:Connect(function()
+        currentLanguage = lang
+        TweenService:Create(langFrame, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+        for _, v in pairs(langFrame:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextButton") then
+                TweenService:Create(v, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+            elseif v:IsA("UIStroke") then
+                TweenService:Create(v, TweenInfo.new(0.3), {Transparency = 1}):Play()
+            end
+        end
+        task.wait(0.5)
+        langFrame:Destroy()
+        createMainHub()
+    end)
+    return b
+end
+
+createLangButton("🇪🇸 Español", "es")
+createLangButton("🇺🇸 English", "en")
+
+-- ================= HUB PRINCIPAL =================
+function createMainHub()
+    local main = Instance.new("Frame", sg)
+    main.Size = UDim2.new(0, 600, 0, 500)
+    main.Position = UDim2.new(0.5, -300, 0.5, -250)
+    main.BackgroundColor3 = currentTheme.Main
+    main.BackgroundTransparency = 0.1
+    main.Active = true
+    main.ClipsDescendants = true
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+    local neonStroke = Instance.new("UIStroke", main)
+    neonStroke.Color = currentTheme.Acc
+    neonStroke.Thickness = 1.5
+
+    local title = Instance.new("TextLabel", main)
+    title.Size = UDim2.new(1, -100, 0, 30)
+    title.Position = UDim2.new(0, 20, 0, 10)
+    title.Text = "GZSSF Hub v3.8"
+    title.TextColor3 = currentTheme.Acc
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 22
+    title.BackgroundTransparency = 1
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    local closeBtn = Instance.new("TextButton", main)
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -40, 0, 10)
+    closeBtn.Text = "X"
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.TextColor3 = Color3.new(1,1,1)
+    closeBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+    local miniBtn = Instance.new("TextButton", main)
+    miniBtn.Size = UDim2.new(0, 30, 0, 30)
+    miniBtn.Position = UDim2.new(1, -80, 0, 10)
+    miniBtn.Text = "-"
+    miniBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    miniBtn.TextColor3 = Color3.new(1,1,1)
+    miniBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(0, 6)
+
+    -- ARRASTRE
+    local dragging, dragInput, dragStart, startPos
+    connect(main.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    connect(main.InputChanged, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    connect(UserInputService.InputChanged, function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    -- Sidebar
+    local sidebar = Instance.new("Frame", main)
+    sidebar.Size = UDim2.new(0, 130, 1, -60)
+    sidebar.Position = UDim2.new(0, 10, 0, 50)
+    sidebar.BackgroundTransparency = 1
+    local sideLayout = Instance.new("UIListLayout", sidebar)
+    sideLayout.Padding = UDim.new(0, 8)
+
+    -- Container
+    local container = Instance.new("Frame", main)
+    container.Size = UDim2.new(1, -160, 1, -70)
+    container.Position = UDim2.new(0, 150, 0, 60)
+    container.BackgroundTransparency = 1
+
+    -- PÁGINA AUTO
+    local pAuto = Instance.new("ScrollingFrame", container)
+    pAuto.Name = "AutoPage"
+    pAuto.Size = UDim2.new(1,0,1,0)
+    pAuto.BackgroundTransparency = 1
+    pAuto.ScrollBarThickness = 3
+    pAuto.ScrollBarImageColor3 = currentTheme.Acc
+    pAuto.CanvasSize = UDim2.new(0,0,0,0)
+    local autoLayout = Instance.new("UIListLayout", pAuto)
+    autoLayout.Padding = UDim.new(0, 10)
+    autoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    -- PÁGINA SETTINGS
+    local pSettings = Instance.new("ScrollingFrame", container)
+    pSettings.Name = "SettingsPage"
+    pSettings.Size = UDim2.new(1,0,1,0)
+    pSettings.BackgroundTransparency = 1
+    pSettings.ScrollBarThickness = 3
+    pSettings.ScrollBarImageColor3 = currentTheme.Acc
+    pSettings.Visible = false
+    pSettings.CanvasSize = UDim2.new(0,0,0,0)
+    local setLayout = Instance.new("UIListLayout", pSettings)
+    setLayout.Padding = UDim.new(0, 10)
+    setLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    connect(autoLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        pAuto.CanvasSize = UDim2.new(0, 0, 0, autoLayout.AbsoluteContentSize.Y + 20)
+    end)
+    connect(setLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        pSettings.CanvasSize = UDim2.new(0, 0, 0, setLayout.AbsoluteContentSize.Y + 20)
+    end)
+
+    -- Tabs
+    local currentTab = "Auto"
+    local tabButtons = {}
+    
+    local function createTabButton(text, tabName)
+        local b = Instance.new("TextButton", sidebar)
+        b.Size = UDim2.new(1, -10, 0, 40)
+        b.Text = text
+        b.BackgroundColor3 = tabName == currentTab and currentTheme.Acc or Color3.fromRGB(35, 35, 45)
+        b.TextColor3 = tabName == currentTab and Color3.new(0,0,0) or currentTheme.Text
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 14
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        
+        table.insert(tabButtons, b)
+        
+        b.MouseButton1Click:Connect(function()
+            currentTab = tabName
+            pAuto.Visible = tabName == "Auto"
+            pSettings.Visible = tabName == "Settings"
+            for _, btn in pairs(tabButtons) do
+                local isSel = btn == b
+                btn.BackgroundColor3 = isSel and currentTheme.Acc or Color3.fromRGB(35, 35, 45)
+                btn.TextColor3 = isSel and Color3.new(0,0,0) or currentTheme.Text
+            end
+        end)
+        return b
+    end
+
+    createTabButton(t("autoFarm"), "Auto")
+    createTabButton(t("settings"), "Settings")
+
+    -- ================= HELPERS UI =================
+    local function createSection(parent, text, order)
+        local lbl = Instance.new("TextLabel", parent)
+        lbl.Size = UDim2.new(0.95, 0, 0, 25)
+        lbl.Text = text
+        lbl.TextColor3 = currentTheme.Acc
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 16
+        lbl.BackgroundTransparency = 1
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.LayoutOrder = order
+        return lbl
+    end
+
+    local function createToggle(parent, textKey, key, onClick, layoutOrder)
+        local b = Instance.new("TextButton", parent)
+        b.Size = UDim2.new(0.95, 0, 0, 42)
+        b.Text = t(textKey) .. ": " .. t("off") .. " ["..key.Name.."]"
+        b.BackgroundColor3 = Color3.fromRGB(30,30,35)
+        b.BackgroundTransparency = 0.2
+        b.TextColor3 = currentTheme.Text
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 14
+        b.LayoutOrder = layoutOrder or 0
+        b.AutoButtonColor = true
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        b.MouseButton1Click:Connect(onClick)
+        return b
+    end
+
+    -- ================= PÁGINA AUTO =================
+    createSection(pAuto, "─ " .. t("autoFarm") .. " ─", 0)
+
+    local tFarm = createToggle(pAuto, "farmSelected", key_farm, toggleSpecificFarm, 1)
+    local tNear = createToggle(pAuto, "farmNearest", key_nearest, toggleNearestFarm, 2)
+
+    local mthBtn = Instance.new("TextButton", pAuto)
+    mthBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    mthBtn.Text = t("method") .. ": Above"
+    mthBtn.BackgroundColor3 = Color3.fromRGB(30,35,45)
+    mthBtn.TextColor3 = currentTheme.Acc
+    mthBtn.Font = Enum.Font.GothamBold
+    mthBtn.TextSize = 14
+    mthBtn.LayoutOrder = 3
+    Instance.new("UICorner", mthBtn).CornerRadius = UDim.new(0, 6)
+    mthBtn.MouseButton1Click:Connect(function()
+        if farm_method == "Above" then farm_method = "Below"
+        elseif farm_method == "Below" then farm_method = "Behind"
+        else farm_method = "Above" end
+        mthBtn.Text = t("method") .. ": " .. farm_method
+    end)
+
+    -- Distancia
+    local distFrame = Instance.new("Frame", pAuto)
+    distFrame.Size = UDim2.new(0.95, 0, 0, 42)
+    distFrame.BackgroundTransparency = 1
+    distFrame.LayoutOrder = 4
+
+    local distLabel = Instance.new("TextLabel", distFrame)
+    distLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    distLabel.Text = t("distance") .. ":"
+    distLabel.TextColor3 = currentTheme.Text
+    distLabel.BackgroundTransparency = 1
+    distLabel.Font = Enum.Font.GothamBold
+    distLabel.TextSize = 14
+    distLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local distInput = Instance.new("TextBox", distFrame)
+    distInput.Size = UDim2.new(0.4, 0, 1, 0)
+    distInput.Position = UDim2.new(0.55, 0, 0, 0)
+    distInput.Text = tostring(farm_distance)
+    distInput.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    distInput.TextColor3 = currentTheme.Acc
+    distInput.Font = Enum.Font.GothamBold
+    distInput.TextSize = 14
+    distInput.ClearTextOnFocus = false
+    Instance.new("UICorner", distInput).CornerRadius = UDim.new(0, 6)
+    distInput.FocusLost:Connect(function()
+        local n = tonumber(distInput.Text)
+        if n then
+            farm_distance = math.clamp(n, 1, 50)
+            distInput.Text = tostring(farm_distance)
+        else
+            distInput.Text = tostring(farm_distance)
+        end
+    end)
+
+    createSection(pAuto, "─ COMBAT ─", 5)
+    local tClick = createToggle(pAuto, "autoClick", key_click, function()
+        autoclick_enabled = not autoclick_enabled
+    end, 6)
+    local tAbil = createToggle(pAuto, "autoAbilities", key_abilities, function()
+        auto_abilities_enabled = not auto_abilities_enabled
+    end, 7)
+
+    createSection(pAuto, "─ TARGET ─", 8)
+    local dropBtn = Instance.new("TextButton", pAuto)
+    dropBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    dropBtn.Text = t("target") .. ": " .. t("none")
+    dropBtn.BackgroundColor3 = Color3.fromRGB(25,25,30)
+    dropBtn.TextColor3 = currentTheme.Acc
+    dropBtn.Font = Enum.Font.GothamBold
+    dropBtn.TextSize = 14
+    dropBtn.LayoutOrder = 9
+    Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0, 6)
+
+    local dropS = Instance.new("ScrollingFrame", pAuto)
+    dropS.Size = UDim2.new(0.95, 0, 0, 140)
+    dropS.Visible = false
+    dropS.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    dropS.BackgroundTransparency = 0.3
+    dropS.ScrollBarThickness = 2
+    dropS.LayoutOrder = 10
+    dropS.CanvasSize = UDim2.new(0,0,0,0)
+    Instance.new("UICorner", dropS).CornerRadius = UDim.new(0, 6)
+    local dropLayout = Instance.new("UIListLayout", dropS)
+    dropLayout.Padding = UDim.new(0, 4)
+
+    connect(dropLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        dropS.CanvasSize = UDim2.new(0, 0, 0, dropLayout.AbsoluteContentSize.Y + 10)
+    end)
+
+    dropBtn.MouseButton1Click:Connect(function()
+        dropS.Visible = not dropS.Visible
+    end)
+
+    for _, data in ipairs(mobData) do
+        local b = Instance.new("TextButton", dropS)
+        b.Size = UDim2.new(1, -10, 0, 32)
+        b.Position = UDim2.new(0, 5, 0, 0)
+        b.Text = data.Display
+        b.BackgroundColor3 = Color3.fromRGB(35,35,40)
+        b.TextColor3 = currentTheme.Text
+        b.Font = Enum.Font.Gotham
+        b.TextSize = 13
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        b.MouseButton1Click:Connect(function()
+            selected_mob_data = data
+            dropBtn.Text = t("target") .. ": " .. data.Name
+            dropS.Visible = false
+            target_part = nil
+        end)
+    end
+
+    -- ================= AUTO BOSS SECTION =================
+    createSection(pAuto, "─ " .. t("autoBoss") .. " ─", 11)
+
+    local tBoss = createToggle(pAuto, "autoBoss", key_farm, toggleBossFarm, 12)
+
+    local bossDropBtn = Instance.new("TextButton", pAuto)
+    bossDropBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    bossDropBtn.Text = t("bossTarget") .. ": " .. t("none")
+    bossDropBtn.BackgroundColor3 = Color3.fromRGB(25,25,30)
+    bossDropBtn.TextColor3 = currentTheme.Acc
+    bossDropBtn.Font = Enum.Font.GothamBold
+    bossDropBtn.TextSize = 14
+    bossDropBtn.LayoutOrder = 13
+    Instance.new("UICorner", bossDropBtn).CornerRadius = UDim.new(0, 6)
+
+    local bossDropS = Instance.new("ScrollingFrame", pAuto)
+    bossDropS.Size = UDim2.new(0.95, 0, 0, 140)
+    bossDropS.Visible = false
+    bossDropS.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    bossDropS.BackgroundTransparency = 0.3
+    bossDropS.ScrollBarThickness = 2
+    bossDropS.LayoutOrder = 14
+    bossDropS.CanvasSize = UDim2.new(0,0,0,0)
+    Instance.new("UICorner", bossDropS).CornerRadius = UDim.new(0, 6)
+    local bossDropLayout = Instance.new("UIListLayout", bossDropS)
+    bossDropLayout.Padding = UDim.new(0, 4)
+
+    connect(bossDropLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        bossDropS.CanvasSize = UDim2.new(0, 0, 0, bossDropLayout.AbsoluteContentSize.Y + 10)
+    end)
+
+    bossDropBtn.MouseButton1Click:Connect(function()
+        bossDropS.Visible = not bossDropS.Visible
+    end)
+
+    for _, data in ipairs(bossData) do
+        local b = Instance.new("TextButton", bossDropS)
+        b.Size = UDim2.new(1, -10, 0, 32)
+        b.Position = UDim2.new(0, 5, 0, 0)
+        b.Text = data.Display
+        b.BackgroundColor3 = Color3.fromRGB(35,35,40)
+        b.TextColor3 = currentTheme.Text
+        b.Font = Enum.Font.Gotham
+        b.TextSize = 13
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        b.MouseButton1Click:Connect(function()
+            selected_boss_data = data
+            bossDropBtn.Text = t("bossTarget") .. ": " .. data.Name
+            bossDropS.Visible = false
+            boss_target_part = nil
+        end)
+    end
+
+    -- ================= PÁGINA SETTINGS =================
+    createSection(pSettings, "─ " .. t("themes") .. " ─", 0)
+
+    local presetRow1 = Instance.new("Frame", pSettings)
+    presetRow1.Size = UDim2.new(0.95, 0, 0, 38)
+    presetRow1.BackgroundTransparency = 1
+    presetRow1.LayoutOrder = 1
+    local row1Layout = Instance.new("UIListLayout", presetRow1)
+    row1Layout.FillDirection = Enum.FillDirection.Horizontal
+    row1Layout.Padding = UDim.new(0, 6)
+
+    local presetRow2 = Instance.new("Frame", pSettings)
+    presetRow2.Size = UDim2.new(0.95, 0, 0, 38)
+    presetRow2.BackgroundTransparency = 1
+    presetRow2.LayoutOrder = 2
+    local row2Layout = Instance.new("UIListLayout", presetRow2)
+    row2Layout.FillDirection = Enum.FillDirection.Horizontal
+    row2Layout.Padding = UDim.new(0, 6)
+
+    local presets = {
+        {Name = "Default", Acc = Color3.fromRGB(0,255,255)},
+        {Name = "Red", Acc = Color3.fromRGB(255,50,50)},
+        {Name = "Green", Acc = Color3.fromRGB(50,255,100)},
+        {Name = "Blue", Acc = Color3.fromRGB(80,120,255)},
+        {Name = "Purple", Acc = Color3.fromRGB(180,80,255)},
+        {Name = "Orange", Acc = Color3.fromRGB(255,150,50)},
+        {Name = "Pink", Acc = Color3.fromRGB(255,80,180)},
+        {Name = "Yellow", Acc = Color3.fromRGB(255,220,50)},
+        {Name = "White", Acc = Color3.fromRGB(200,200,200)},
+        {Name = "Black", Acc = Color3.fromRGB(100,100,100)},
+    }
+
+    local function applyAccentColor(color)
+        currentTheme.Acc = color
+        neonStroke.Color = color
+        title.TextColor3 = color
+        mthBtn.TextColor3 = color
+        dropBtn.TextColor3 = color
+        distInput.TextColor3 = color
+        pAuto.ScrollBarImageColor3 = color
+        pSettings.ScrollBarImageColor3 = color
+        
+        for _, btn in pairs(tabButtons) do
+            local isSel = (btn.Text == t("autoFarm") and currentTab == "Auto") or (btn.Text == t("settings") and currentTab == "Settings")
+            if isSel then
+                btn.BackgroundColor3 = color
+            end
+        end
+    end
+
+    for i, preset in ipairs(presets) do
+        local parent = i <= 5 and presetRow1 or presetRow2
+        local b = Instance.new("TextButton", parent)
+        b.Size = UDim2.new(0, 95, 1, 0)
+        b.Text = preset.Name
+        b.BackgroundColor3 = preset.Acc
+        b.TextColor3 = Color3.new(0,0,0)
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 12
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        b.MouseButton1Click:Connect(function()
+            applyAccentColor(preset.Acc)
+        end)
+    end
+
+    -- HEX Custom
+    createSection(pSettings, "─ " .. t("customAccent") .. " ─", 3)
+    
+    local hexFrame = Instance.new("Frame", pSettings)
+    hexFrame.Size = UDim2.new(0.95, 0, 0, 40)
+    hexFrame.BackgroundTransparency = 1
+    hexFrame.LayoutOrder = 4
+
+    local hexInput = Instance.new("TextBox", hexFrame)
+    hexInput.Size = UDim2.new(0, 150, 1, 0)
+    hexInput.Text = "00FFFF"
+    hexInput.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    hexInput.TextColor3 = currentTheme.Acc
+    hexInput.Font = Enum.Font.GothamBold
+    hexInput.TextSize = 14
+    hexInput.PlaceholderText = "00FFFF"
+    Instance.new("UICorner", hexInput).CornerRadius = UDim.new(0, 4)
+
+    local hexApply = Instance.new("TextButton", hexFrame)
+    hexApply.Size = UDim2.new(0, 100, 1, 0)
+    hexApply.Position = UDim2.new(0, 160, 0, 0)
+    hexApply.Text = t("apply")
+    hexApply.BackgroundColor3 = currentTheme.Acc
+    hexApply.TextColor3 = Color3.new(0,0,0)
+    hexApply.Font = Enum.Font.GothamBold
+    hexApply.TextSize = 14
+    Instance.new("UICorner", hexApply).CornerRadius = UDim.new(0, 4)
+
+    hexApply.MouseButton1Click:Connect(function()
+        local hex = hexInput.Text:gsub("#", ""):upper()
+        if #hex ~= 6 or hex:match("[^0-9A-F]") then
+            hexInput.Text = "ERROR"
+            task.wait(1)
+            hexInput.Text = "00FFFF"
+            return
+        end
+        local r = tonumber(hex:sub(1,2), 16)
+        local g = tonumber(hex:sub(3,4), 16)
+        local b = tonumber(hex:sub(5,6), 16)
+        applyAccentColor(Color3.fromRGB(r, g, b))
+    end)
+
+    -- AUTO EQUIP
+    createSection(pSettings, "─ " .. t("autoEquip") .. " ─", 5)
+
+    local equipBtn = Instance.new("TextButton", pSettings)
+    equipBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    equipBtn.Text = t("autoEquip") .. ": " .. t("off")
+    equipBtn.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    equipBtn.TextColor3 = currentTheme.Text
+    equipBtn.Font = Enum.Font.GothamBold
+    equipBtn.TextSize = 14
+    equipBtn.LayoutOrder = 6
+    Instance.new("UICorner", equipBtn).CornerRadius = UDim.new(0, 6)
+    equipBtn.MouseButton1Click:Connect(function()
+        auto_equip_enabled = not auto_equip_enabled
+        equipBtn.Text = t("autoEquip") .. ": " .. (auto_equip_enabled and t("on") or t("off"))
+        equipBtn.TextColor3 = auto_equip_enabled and currentTheme.Acc or currentTheme.Text
+        if auto_equip_enabled then
+            tryEquipSlot()
+        end
+    end)
+
+    local slotFrame = Instance.new("Frame", pSettings)
+    slotFrame.Size = UDim2.new(0.95, 0, 0, 40)
+    slotFrame.BackgroundTransparency = 1
+    slotFrame.LayoutOrder = 7
+
+    local slotLabel = Instance.new("TextLabel", slotFrame)
+    slotLabel.Size = UDim2.new(0, 60, 1, 0)
+    slotLabel.Text = t("slot") .. ":"
+    slotLabel.TextColor3 = currentTheme.Text
+    slotLabel.Font = Enum.Font.GothamBold
+    slotLabel.TextSize = 14
+    slotLabel.BackgroundTransparency = 1
+    slotLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local slotContainer = Instance.new("Frame", slotFrame)
+    slotContainer.Size = UDim2.new(1, -70, 1, 0)
+    slotContainer.Position = UDim2.new(0, 70, 0, 0)
+    slotContainer.BackgroundTransparency = 1
+
+    local slotLayout = Instance.new("UIListLayout", slotContainer)
+    slotLayout.FillDirection = Enum.FillDirection.Horizontal
+    slotLayout.Padding = UDim.new(0, 5)
+
+    for i = 1, 9 do
+        local sb = Instance.new("TextButton", slotContainer)
+        sb.Size = UDim2.new(0, 36, 0, 36)
+        sb.Text = "#" .. i
+        sb.BackgroundColor3 = (i == auto_equip_slot) and currentTheme.Acc or Color3.fromRGB(35,35,45)
+        sb.TextColor3 = (i == auto_equip_slot) and Color3.new(0,0,0) or currentTheme.Text
+        sb.Font = Enum.Font.GothamBold
+        sb.TextSize = 12
+        Instance.new("UICorner", sb).CornerRadius = UDim.new(0, 4)
+        sb.MouseButton1Click:Connect(function()
+            auto_equip_slot = i
+            for _, btn in pairs(slotContainer:GetChildren()) do
+                if btn:IsA("TextButton") then
+                    local idx = tonumber(btn.Text:sub(2))
+                    btn.BackgroundColor3 = (idx == i) and currentTheme.Acc or Color3.fromRGB(35,35,45)
+                    btn.TextColor3 = (idx == i) and Color3.new(0,0,0) or currentTheme.Text
+                end
+            end
+            if auto_equip_enabled then
+                tryEquipSlot()
+            end
+        end)
+    end
+
+    -- Safe Reset
+    local safeBtn = Instance.new("TextButton", pSettings)
+    safeBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    safeBtn.Text = t("safeReset")
+    safeBtn.BackgroundColor3 = Color3.fromRGB(45, 30, 30)
+    safeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    safeBtn.Font = Enum.Font.GothamBold
+    safeBtn.TextSize = 14
+    safeBtn.LayoutOrder = 8
+    Instance.new("UICorner", safeBtn).CornerRadius = UDim.new(0, 6)
+    safeBtn.MouseButton1Click:Connect(function()
+        dropNextToEnemy()
+    end)
+
+    -- ================= NÚCLEO HEARTBEAT =================
+    connect(RunService.Heartbeat, function()
+        if not is_script_active then return end
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        if hrp.Velocity.Y > -5 and hrp.Velocity.Y < 5 then
+            local rayOrigin = hrp.Position
+            local rayDirection = Vector3.new(0, -10, 0)
+            local rayParams = RaycastParams.new()
+            rayParams.FilterDescendantsInstances = {char}
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local res = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
+            if res then
+                lastSafePosition = hrp.Position
+            end
+        end
+
+        local is_f = farming_enabled or nearest_farming_enabled or boss_farming_enabled
+        if is_f then
+            setCollision(char, false)
+        end
+
+        tFarm.Text = t("farmSelected") .. ": " .. (farming_enabled and t("on") or t("off")) .. " ["..key_farm.Name.."]"
+        tFarm.TextColor3 = farming_enabled and currentTheme.Acc or currentTheme.Text
+
+        tNear.Text = t("farmNearest") .. ": " .. (nearest_farming_enabled and t("on") or t("off")) .. " ["..key_nearest.Name.."]"
+        tNear.TextColor3 = nearest_farming_enabled and currentTheme.Acc or currentTheme.Text
+
+        tBoss.Text = t("autoBoss") .. ": " .. (boss_farming_enabled and t("on") or t("off")) .. " ["..key_farm.Name.."]"
+        tBoss.TextColor3 = boss_farming_enabled and currentTheme.Acc or currentTheme.Text
+
+        tClick.Text = t("autoClick") .. ": " .. (autoclick_enabled and t("on") or t("off")) .. " ["..key_click.Name.."]"
+        tClick.TextColor3 = autoclick_enabled and currentTheme.Acc or currentTheme.Text
+
+        tAbil.Text = t("autoAbilities") .. ": " .. (auto_abilities_enabled and t("on") or t("off")) .. " ["..key_abilities.Name.."]"
+        tAbil.TextColor3 = auto_abilities_enabled and currentTheme.Acc or currentTheme.Text
+
+        -- BOSS FARM LOGIC
+        if boss_farming_enabled then
+            if not boss_target_part or not boss_target_part.Parent then
+                boss_target_part = nil
+                local dMax = math.huge
+                for _, island in ipairs(islandPaths) do
+                    local success, mobs = pcall(function() return island:GetChildren() end)
+                    if success and mobs then
+                        for _, mob in ipairs(mobs) do
+                            if mob:IsA("Model") and selected_boss_data and string.find(mob.Name, selected_boss_data.Name) then
+                                local mHrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                                local hum = mob:FindFirstChildOfClass("Humanoid")
+                                if mHrp and hum and hum.Health > 0 then
+                                    local d = (hrp.Position - mHrp.Position).Magnitude
+                                    if d < dMax then
+                                        dMax = d
+                                        boss_target_part = mHrp
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            if boss_target_part and boss_target_part.Parent then
+                local hum = boss_target_part.Parent:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then
+                    boss_target_part = nil
+                else
+                    local offset = Vector3.new(0, farm_distance, 0)
+                    if farm_method == "Below" then
+                        offset = Vector3.new(0, -farm_distance, 0)
+                    elseif farm_method == "Behind" then
+                        offset = boss_target_part.CFrame.LookVector * -farm_distance
+                    end
+                    hrp.CFrame = CFrame.lookAt(boss_target_part.Position + offset, boss_target_part.Position)
+                    hrp.Velocity = Vector3.zero
+                end
+            end
+            return
+        end
+
+        if not is_f then return end
+
+        -- NORMAL FARM LOGIC
+        if not target_part or not target_part.Parent then
+            target_part = nil
+            local dMax = math.huge
+            for _, island in ipairs(islandPaths) do
+                local success, mobs = pcall(function() return island:GetChildren() end)
+                if success and mobs then
+                    for _, mob in ipairs(mobs) do
+                        if mob:IsA("Model") and (nearest_farming_enabled or (farming_enabled and selected_mob_data and string.find(mob.Name, selected_mob_data.Name))) then
+                            local mHrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                            local hum = mob:FindFirstChildOfClass("Humanoid")
+                            if mHrp and hum and hum.Health > 0 then
+                                local d = (hrp.Position - mHrp.Position).Magnitude
+                                if d < dMax then
+                                    dMax = d
+                                    target_part = mHrp
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if target_part and target_part.Parent then
+            local hum = target_part.Parent:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then
+                target_part = nil
+                return
+            end
+            local offset = Vector3.new(0, farm_distance, 0)
+            if farm_method == "Below" then
+                offset = Vector3.new(0, -farm_distance, 0)
+            elseif farm_method == "Behind" then
+                offset = target_part.CFrame.LookVector * -farm_distance
+            end
+            local targetPos = target_part.Position + offset
+            hrp.CFrame = CFrame.lookAt(targetPos, target_part.Position)
+            hrp.Velocity = Vector3.zero
+        end
+    end)
+
+    -- ================= CONTROLES =================
+    connect(closeBtn.MouseButton1Click, function()
+        is_script_active = false
+        farming_enabled = false
+        nearest_farming_enabled = false
+        boss_farming_enabled = false
+        autoclick_enabled = false
+        auto_abilities_enabled = false
+        setCollision(player.Character, true)
+        for _, conn in ipairs(connections) do
+            if conn and conn.Connected then
+                conn:Disconnect()
+            end
+        end
+        sg:Destroy()
+    end)
+
+    connect(miniBtn.MouseButton1Click, function()
+        is_minimized = not is_minimized
+        main:TweenSize(
+            is_minimized and UDim2.new(0, 600, 0, 50) or UDim2.new(0, 600, 0, 500),
+            "Out", "Quad", 0.3, true
+        )
+    end)
+
+    connect(UserInputService.InputBegan, function(i, p)
+        if not p then
+            if i.KeyCode == key_farm then 
+                if selected_boss_data and boss_farming_enabled then
+                    toggleBossFarm()
+                elseif selected_mob_data and farming_enabled then
+                    toggleSpecificFarm()
+                else
+                    toggleSpecificFarm()
+                end
+            elseif i.KeyCode == key_nearest then toggleNearestFarm()
+            elseif i.KeyCode == key_click then autoclick_enabled = not autoclick_enabled
+            elseif i.KeyCode == key_abilities then auto_abilities_enabled = not auto_abilities_enabled
+            elseif i.KeyCode == ui_toggle_key then main.Visible = not main.Visible end
+        end
+    end)
+
+    -- Auto Equip al respawnear
+    connect(player.CharacterAdded, function(char)
+        if not auto_equip_enabled then return end
+        task.spawn(function()
+            local humanoid = char:WaitForChild("Humanoid", 3)
+            if not humanoid then return end
+            
+            -- Esperar a que backpack tenga tools (reintentos)
+            local attempts = 0
+            while attempts < 15 do
+                local backpack = player:FindFirstChild("Backpack")
+                if backpack then
+                    local toolCount = 0
+                    for _, v in ipairs(backpack:GetChildren()) do
+                        if v:IsA("Tool") then toolCount += 1 end
+                    end
+                    if toolCount >= auto_equip_slot then
+                        tryEquipSlot()
+                        break
+                    end
+                end
+                attempts += 1
+                task.wait(0.3)
+            end
+        end)
+    end)
+
+    -- Loop ligero: solo si no tiene nada en mano
+    task.spawn(function()
+        while is_script_active do
+            if auto_equip_enabled then
+                local char = player.Character
+                if char and not char:FindFirstChildOfClass("Tool") then
+                    tryEquipSlot()
+                end
+            end
+            task.wait(2.5)
+        end
+    end)
+
+    -- ================= LOOPS SECUNDARIOS =================
+    task.spawn(function()
+        while is_script_active do
+            if autoclick_enabled then
+                pcall(function()
+                    VirtualInputManager:SendMouseButtonEvent(0,0,0,true,game,0)
+                    task.wait(0.01)
+                    VirtualInputManager:SendMouseButtonEvent(0,0,0,false,game,0)
+                end)
+            end
+            if auto_abilities_enabled then
+                for _, k in ipairs({Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.G}) do
+                    pcall(function()
+                        VirtualInputManager:SendKeyEvent(true, k, false, game)
+                        task.wait(0.05)
+                        VirtualInputManager:SendKeyEvent(false, k, false, game)
+                    end)
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+
+    task.spawn(function()
+        local vu = game:GetService("VirtualUser")
+        connect(player.Idled, function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+    end)
+end
