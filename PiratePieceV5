@@ -153,7 +153,8 @@ local bossData = {
     {Display = "Sokuna Boss [Lv. 8888]", Name = "Sokuna Boss", Spawn = Vector3.new(1573.8988037109375, 16.97490119934082, 907.4929809570312)},
     {Display = "Gouku [Lv. 9999]", Name = "Gouku", Spawn = Vector3.new(5.465822696685791, 6.674808025360107, -1823.1336669921875)},
     {Display = "Galaxy Boss [Lv. 6666]", Name = "Galaxy Boss", Spawn = Vector3.new(-940.2113037109375, 28.90858268737793, 769.8407592773438)},
-    {Display = "Dragon Boss", Name = "Dragon Boss", Spawn = Vector3.new(-835.3096313476562, 42.485023498535156, 624.025146484375)}
+    {Display = "Dragon Boss", Name = "Dragon Boss", Spawn = Vector3.new(-835.3096313476562, 42.485023498535156, 624.025146484375)},
+    {Display = "Reze Boss", Name = "Reze Boss", Spawn = Vector3.new(2518.114501953125, 1.8105477094650269, -303.1720275878906)}
 }
 
 -- ================= FUNCIONES UTILITARIAS =================
