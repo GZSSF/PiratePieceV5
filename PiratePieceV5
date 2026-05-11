@@ -1,6 +1,6 @@
 --[[
     ╔══════════════════════════════════════════════════════════╗
-    ║                HUB BY GZSSF v3.8                         ║
+    ║     HUB BY GZSSF v3.8=Auto Infinite Tower Añadido        ║
     ║     TARGET: Pirate Piece - BOSS & SLOT FIX               ║
     ║     EXECUTOR: XENO (SUPPORTED)                           ║
     ╚══════════════════════════════════════════════════════════╝
@@ -117,6 +117,16 @@ local function connect(signal, func)
     table.insert(connections, conn)
     return conn
 end
+
+
+-- ================= INFINITE TOWER VARS =================
+local infinite_tower_enabled = false
+local infinite_tower_target_part = nil
+local infinite_tower_enemies_list = {}
+local key_infinite_tower = Enum.KeyCode.N
+local selected_tower_enemy = nil
+local infinite_tower_farm_method = "Below"
+local infinite_tower_farm_distance = 30
 
 -- ================= DATA DE ENEMIGOS =================
 local EnemyNpcs = Workspace:WaitForChild("Game"):WaitForChild("EnemyNpcs")
@@ -240,6 +250,47 @@ local function tryEquipSlot()
     end)
     task.wait(1.0)
     equipDebounce = false
+end
+
+
+-- ================= INFINITE TOWER FUNCS =================
+local function getInfiniteTowerEnemies()
+    local enemies = {}
+    local towerFolder = Workspace:FindFirstChild("Infinite Tower")
+    if not towerFolder then return enemies end
+    local runtimeEnemies = towerFolder:FindFirstChild("RuntimeEnemies")
+    if not runtimeEnemies then return enemies end
+
+    for _, model in ipairs(runtimeEnemies:GetChildren()) do
+        if model:IsA("Model") then
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
+            if hum and hum.Health > 0 and hrp then
+                table.insert(enemies, {
+                    Name = model.Name,
+                    Model = model,
+                    HRP = hrp,
+                    Humanoid = hum
+                })
+            end
+        end
+    end
+    return enemies
+end
+
+local function toggleInfiniteTowerFarm()
+    infinite_tower_enabled = not infinite_tower_enabled
+    if farming_enabled and infinite_tower_enabled then farming_enabled = false end
+    if nearest_farming_enabled and infinite_tower_enabled then nearest_farming_enabled = false end
+    if boss_farming_enabled and infinite_tower_enabled then boss_farming_enabled = false end
+
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if infinite_tower_enabled and hrp then
+        lastSafePosition = hrp.Position
+    elseif not infinite_tower_enabled then
+        dropNextToEnemy()
+    end
 end
 
 -- ================= LÓGICA DE MOVIMIENTO =================
@@ -705,7 +756,176 @@ function createMainHub()
         end)
     end
 
-    -- ================= PÁGINA SETTINGS =================
+    
+    -- ================= AUTO INFINITE TOWER SECTION =================
+    createSection(pAuto, "─ Auto Infinite Tower ─", 15)
+
+    local tInfiniteTower = createToggle(pAuto, "farmSelected", key_infinite_tower, toggleInfiniteTowerFarm, 16)
+    -- Override text for infinite tower
+    tInfiniteTower.Text = "AUTO INFINITE TOWER: " .. (infinite_tower_enabled and "ON" or "OFF") .. " ["..key_infinite_tower.Name.."]"
+
+    -- Método de farmeo SEPARADO para Infinite Tower (predeterminado: Below)
+    local towerMthBtn = Instance.new("TextButton", pAuto)
+    towerMthBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    towerMthBtn.Text = "Method: Below (Recommended)"
+    towerMthBtn.BackgroundColor3 = Color3.fromRGB(30,35,45)
+    towerMthBtn.TextColor3 = currentTheme.Acc
+    towerMthBtn.Font = Enum.Font.GothamBold
+    towerMthBtn.TextSize = 14
+    towerMthBtn.LayoutOrder = 17
+    Instance.new("UICorner", towerMthBtn).CornerRadius = UDim.new(0, 6)
+    towerMthBtn.MouseButton1Click:Connect(function()
+        if infinite_tower_farm_method == "Above" then infinite_tower_farm_method = "Below"
+        elseif infinite_tower_farm_method == "Below" then infinite_tower_farm_method = "Behind"
+        else infinite_tower_farm_method = "Above" end
+
+        local displayText = infinite_tower_farm_method
+        if infinite_tower_farm_method == "Below" then
+            displayText = "Below (Recommended)"
+        end
+        towerMthBtn.Text = "Method: " .. displayText
+    end)
+
+    -- Distancia SEPARADA para Infinite Tower (predeterminado: 30)
+    local towerDistFrame = Instance.new("Frame", pAuto)
+    towerDistFrame.Size = UDim2.new(0.95, 0, 0, 42)
+    towerDistFrame.BackgroundTransparency = 1
+    towerDistFrame.LayoutOrder = 18
+
+    local towerDistLabel = Instance.new("TextLabel", towerDistFrame)
+    towerDistLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    towerDistLabel.Text = "Distance:"
+    towerDistLabel.TextColor3 = currentTheme.Text
+    towerDistLabel.BackgroundTransparency = 1
+    towerDistLabel.Font = Enum.Font.GothamBold
+    towerDistLabel.TextSize = 14
+    towerDistLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local towerDistInput = Instance.new("TextBox", towerDistFrame)
+    towerDistInput.Size = UDim2.new(0.4, 0, 1, 0)
+    towerDistInput.Position = UDim2.new(0.55, 0, 0, 0)
+    towerDistInput.Text = "30 (Recommended)"
+    towerDistInput.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    towerDistInput.TextColor3 = currentTheme.Acc
+    towerDistInput.Font = Enum.Font.GothamBold
+    towerDistInput.TextSize = 14
+    towerDistInput.ClearTextOnFocus = true
+    Instance.new("UICorner", towerDistInput).CornerRadius = UDim.new(0, 6)
+    towerDistInput.FocusLost:Connect(function()
+        -- Extraer solo los números del texto
+        local text = towerDistInput.Text
+        local numStr = text:gsub("[^0-9]", "")
+        local n = tonumber(numStr)
+        if n then
+            infinite_tower_farm_distance = math.clamp(n, 1, 50)
+            if infinite_tower_farm_distance == 30 then
+                towerDistInput.Text = "30 (Recommended)"
+            else
+                towerDistInput.Text = tostring(infinite_tower_farm_distance)
+            end
+        else
+            if infinite_tower_farm_distance == 30 then
+                towerDistInput.Text = "30 (Recommended)"
+            else
+                towerDistInput.Text = tostring(infinite_tower_farm_distance)
+            end
+        end
+    end)
+
+    local towerDropBtn = Instance.new("TextButton", pAuto)
+    towerDropBtn.Size = UDim2.new(0.95, 0, 0, 42)
+    towerDropBtn.Text = "Target: None"
+    towerDropBtn.BackgroundColor3 = Color3.fromRGB(25,25,30)
+    towerDropBtn.TextColor3 = currentTheme.Acc
+    towerDropBtn.Font = Enum.Font.GothamBold
+    towerDropBtn.TextSize = 14
+    towerDropBtn.LayoutOrder = 19
+    Instance.new("UICorner", towerDropBtn).CornerRadius = UDim.new(0, 6)
+
+    local towerDropS = Instance.new("ScrollingFrame", pAuto)
+    towerDropS.Size = UDim2.new(0.95, 0, 0, 140)
+    towerDropS.Visible = false
+    towerDropS.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    towerDropS.BackgroundTransparency = 0.3
+    towerDropS.ScrollBarThickness = 2
+    towerDropS.LayoutOrder = 20
+    towerDropS.CanvasSize = UDim2.new(0,0,0,0)
+    Instance.new("UICorner", towerDropS).CornerRadius = UDim.new(0, 6)
+    local towerDropLayout = Instance.new("UIListLayout", towerDropS)
+    towerDropLayout.Padding = UDim.new(0, 4)
+
+    connect(towerDropLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        towerDropS.CanvasSize = UDim2.new(0, 0, 0, towerDropLayout.AbsoluteContentSize.Y + 10)
+    end)
+
+    towerDropBtn.MouseButton1Click:Connect(function()
+        towerDropS.Visible = not towerDropS.Visible
+    end)
+
+    -- Función para actualizar la lista de enemigos cada 2 segundos
+    local towerEnemyButtons = {}
+
+    local function clearTowerButtons()
+        for _, btn in ipairs(towerEnemyButtons) do
+            if btn and btn.Parent then btn:Destroy() end
+        end
+        for i = #towerEnemyButtons, 1, -1 do
+            table.remove(towerEnemyButtons, i)
+        end
+    end
+
+    local function updateTowerEnemyList()
+        if not is_script_active then return end
+        clearTowerButtons()
+
+        local enemies = getInfiniteTowerEnemies()
+        infinite_tower_enemies_list = enemies
+
+        for _, enemyData in ipairs(enemies) do
+            local b = Instance.new("TextButton", towerDropS)
+            b.Size = UDim2.new(1, -10, 0, 32)
+            b.Position = UDim2.new(0, 5, 0, 0)
+            b.Text = enemyData.Name
+            b.BackgroundColor3 = Color3.fromRGB(35,35,40)
+            b.TextColor3 = currentTheme.Text
+            b.Font = Enum.Font.Gotham
+            b.TextSize = 13
+            Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+            b.MouseButton1Click:Connect(function()
+                selected_tower_enemy = enemyData
+                towerDropBtn.Text = "Target: " .. enemyData.Name
+                towerDropS.Visible = false
+                infinite_tower_target_part = nil
+            end)
+            table.insert(towerEnemyButtons, b)
+        end
+
+        if #enemies == 0 then
+            local b = Instance.new("TextButton", towerDropS)
+            b.Size = UDim2.new(1, -10, 0, 32)
+            b.Position = UDim2.new(0, 5, 0, 0)
+            b.Text = "No enemies found"
+            b.BackgroundColor3 = Color3.fromRGB(35,35,40)
+            b.TextColor3 = Color3.fromRGB(150,150,150)
+            b.Font = Enum.Font.Gotham
+            b.TextSize = 13
+            Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+            table.insert(towerEnemyButtons, b)
+        end
+    end
+
+    -- Actualizar lista inicial y cada 2 segundos
+    updateTowerEnemyList()
+    task.spawn(function()
+        while is_script_active do
+            task.wait(2)
+            if is_script_active then
+                pcall(updateTowerEnemyList)
+            end
+        end
+    end)
+
+-- ================= PÁGINA SETTINGS =================
     createSection(pSettings, "─ " .. t("themes") .. " ─", 0)
 
     local presetRow1 = Instance.new("Frame", pSettings)
@@ -933,7 +1153,10 @@ function createMainHub()
         tAbil.Text = t("autoAbilities") .. ": " .. (auto_abilities_enabled and t("on") or t("off")) .. " ["..key_abilities.Name.."]"
         tAbil.TextColor3 = auto_abilities_enabled and currentTheme.Acc or currentTheme.Text
 
-        -- BOSS FARM LOGIC
+                tInfiniteTower.Text = "AUTO INFINITE TOWER: " .. (infinite_tower_enabled and "ON" or "OFF") .. " ["..key_infinite_tower.Name.."]"
+        tInfiniteTower.TextColor3 = infinite_tower_enabled and currentTheme.Acc or currentTheme.Text
+
+-- BOSS FARM LOGIC
         if boss_farming_enabled then
             if not boss_target_part or not boss_target_part.Parent then
                 boss_target_part = nil
@@ -976,7 +1199,70 @@ function createMainHub()
             return
         end
 
-        if not is_f then return end
+        
+        -- INFINITE TOWER FARM LOGIC
+        if infinite_tower_enabled then
+            if not infinite_tower_target_part or not infinite_tower_target_part.Parent then
+                infinite_tower_target_part = nil
+                local dMax = math.huge
+
+                local towerFolder = Workspace:FindFirstChild("Infinite Tower")
+                if towerFolder then
+                    local runtimeEnemies = towerFolder:FindFirstChild("RuntimeEnemies")
+                    if runtimeEnemies then
+                        for _, mob in ipairs(runtimeEnemies:GetChildren()) do
+                            if mob:IsA("Model") then
+                                local mHrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+                                local hum = mob:FindFirstChildOfClass("Humanoid")
+                                if mHrp and hum and hum.Health > 0 then
+                                    -- Si hay enemigo seleccionado, buscar solo ese
+                                    if selected_tower_enemy and mob.Name == selected_tower_enemy.Name then
+                                        local d = (hrp.Position - mHrp.Position).Magnitude
+                                        if d < dMax then
+                                            dMax = d
+                                            infinite_tower_target_part = mHrp
+                                        end
+                                    elseif not selected_tower_enemy then
+                                        -- Si no hay seleccionado, buscar el más cercano
+                                        local d = (hrp.Position - mHrp.Position).Magnitude
+                                        if d < dMax then
+                                            dMax = d
+                                            infinite_tower_target_part = mHrp
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            if infinite_tower_target_part and infinite_tower_target_part.Parent then
+                local hum = infinite_tower_target_part.Parent:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then
+                    infinite_tower_target_part = nil
+                else
+                    -- Usa las variables SEPARADAS de Infinite Tower
+                    local offset = Vector3.new(0, infinite_tower_farm_distance, 0)
+                    if infinite_tower_farm_method == "Below" then
+                        offset = Vector3.new(0, -infinite_tower_farm_distance, 0)
+                    elseif infinite_tower_farm_method == "Behind" then
+                        offset = infinite_tower_target_part.CFrame.LookVector * -infinite_tower_farm_distance
+                    end
+                    local targetPos = infinite_tower_target_part.Position + offset
+                    hrp.CFrame = CFrame.lookAt(targetPos, infinite_tower_target_part.Position)
+                    hrp.Velocity = Vector3.zero
+                end
+            end
+
+            -- Actualizar texto del toggle
+            tInfiniteTower.Text = "AUTO INFINITE TOWER: " .. (infinite_tower_enabled and "ON" or "OFF") .. " ["..key_infinite_tower.Name.."]"
+            tInfiniteTower.TextColor3 = infinite_tower_enabled and currentTheme.Acc or currentTheme.Text
+
+            return
+        end
+
+if not is_f then return end
 
         -- NORMAL FARM LOGIC
         if not target_part or not target_part.Parent then
@@ -1056,6 +1342,7 @@ function createMainHub()
                     toggleSpecificFarm()
                 end
             elseif i.KeyCode == key_nearest then toggleNearestFarm()
+            elseif i.KeyCode == key_infinite_tower then toggleInfiniteTowerFarm()
             elseif i.KeyCode == key_click then autoclick_enabled = not autoclick_enabled
             elseif i.KeyCode == key_abilities then auto_abilities_enabled = not auto_abilities_enabled
             elseif i.KeyCode == ui_toggle_key then main.Visible = not main.Visible end
