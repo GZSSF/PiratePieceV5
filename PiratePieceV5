@@ -1,7 +1,7 @@
 --[[
     ╔══════════════════════════════════════════════════════════╗
-    ║     HUB BY GZSSF v3.8=Auto Infinite Tower Añadido        ║
-    ║     TARGET: Pirate Piece - BOSS & SLOT FIX               ║
+    ║                HUB BY GZSSF v3.8                         ║
+    ║     TARGET: Pirate Piece - BOSS & SLOT FIX -island 10    ║
     ║     EXECUTOR: XENO (SUPPORTED)                           ║
     ╚══════════════════════════════════════════════════════════╝
 ]]
@@ -135,7 +135,7 @@ local islandPaths = {
     EnemyNpcs:WaitForChild("island3"), EnemyNpcs:WaitForChild("island4"),
     EnemyNpcs:WaitForChild("island5"), EnemyNpcs:WaitForChild("island6"),
     EnemyNpcs:WaitForChild("island7"), EnemyNpcs:WaitForChild("island8"),
-    EnemyNpcs:WaitForChild("shibuya")
+    EnemyNpcs:WaitForChild("shibuya"), EnemyNpcs:WaitForChild("island10")
 }
 
 local mobData = {
@@ -154,7 +154,8 @@ local mobData = {
     {Display = "Robyn (6500)", Name = "Robyn", Spawn = Vector3.new(267.220, 6.692, -1675.884)},
     {Display = "Aokeejee (7500)", Name = "Aokeejee", Spawn = Vector3.new(315.537, 7.319, -1814.212)},
     {Display = "Bogard (8000)", Name = "Bogard", Spawn = Vector3.new(-826.1371459960938, 29.894062042236328, 960.0199584960938)},
-    {Display = "Kobenu (9000)", Name = "Kobenu", Spawn = Vector3.new(2550.75439453125, 3.2214245796203613, -54.12282943725586)}
+    {Display = "Kobenu (9000)", Name = "Kobenu", Spawn = Vector3.new(2550.75439453125, 3.2214245796203613, -54.12282943725586)},
+    {Display = "Mutant Ant (10,000)", Name = "Mutant Ant", Spawn = Vector3.new(2916.95654296875, 3.0351576805114746, 1285.1490478515625)}
 }
 
 local bossData = {
@@ -164,7 +165,8 @@ local bossData = {
     {Display = "Gouku [Lv. 9999]", Name = "Gouku", Spawn = Vector3.new(5.465822696685791, 6.674808025360107, -1823.1336669921875)},
     {Display = "Galaxy Boss [Lv. 6666]", Name = "Galaxy Boss", Spawn = Vector3.new(-940.2113037109375, 28.90858268737793, 769.8407592773438)},
     {Display = "Dragon Boss", Name = "Dragon Boss", Spawn = Vector3.new(-835.3096313476562, 42.485023498535156, 624.025146484375)},
-    {Display = "Reze Boss", Name = "Reze Boss", Spawn = Vector3.new(2518.114501953125, 1.8105477094650269, -303.1720275878906)}
+    {Display = "Reze Boss", Name = "Reze Boss", Spawn = Vector3.new(2518.114501953125, 1.8105477094650269, -303.1720275878906)},
+    {Display = "Ant King Boss", Name = "Ant King Boss", Spawn = Vector3.new(3331.234619140625, 26.198583602905273, 1595.6802978515625)}
 }
 
 -- ================= FUNCIONES UTILITARIAS =================
